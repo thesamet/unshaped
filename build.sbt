@@ -11,11 +11,17 @@ scalacOptions in ThisBuild ++= Seq(
 lazy val macros = project.in(file("macros")).settings(
   libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
   libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value % "provided",
+  libraryDependencies += "com.google.protobuf" % "protobuf-java" % "3.5.1",
   libraryDependencies ++= Seq(
     "org.typelevel" %% "macro-compat" % "1.1.1",
     "com.chuusai" %% "shapeless" % "2.3.2",
     compilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.patch)
   ),
+
+  // simulacrum
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.12.0",
+
   libraryDependencies ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
       // if scala 2.11+ is used, quasiquotes are merged into scala-reflect
@@ -31,7 +37,10 @@ lazy val macros = project.in(file("macros")).settings(
 
 lazy val core = project.in(file("core")).dependsOn(macros).settings(
   libraryDependencies +=
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.12.0",
 )
 
 lazy val root =

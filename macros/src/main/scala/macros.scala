@@ -8,17 +8,17 @@ import scala.reflect.macros.{blackbox, whitebox}
 import macrocompat.bundle
 import shapeless._
 
-trait Helper[T] {
+trait SchemaHolder[T] {
   type FD
 }
 
-object Helper {
+object SchemaHolder {
 
-  type Aux[T, FD0] = Helper[T] { type FD = FD0 }
+  type Aux[T, FD0] = SchemaHolder[T] { type FD = FD0 }
 
-  def apply[T](implicit helper: Helper[T]): Aux[T, helper.FD] = helper
+  def apply[T](implicit helper: SchemaHolder[T]): Aux[T, helper.FD] = helper
 
-  implicit def makeHelper[T, R]: Helper[T] = macro Macros.mkHelper[T, R]
+  implicit def makeHelper[T, R]: SchemaHolder[T] = macro Macros.mkHelper[T, R]
 }
 
 @bundle
@@ -27,17 +27,17 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
 
   def mkHelper[T : WeakTypeTag, R : WeakTypeTag]: Tree = {
     val tpe = weakTypeOf[T]
-    val fieldTpe: c.universe.Type = weakTypeOf[Optional]
-    val optionalAtt: c.universe.Type = weakTypeOf[OptionalAtt[_, _]]
+    val labelTpe: c.universe.Type = weakTypeOf[Label]
+    val fieldTpe: c.universe.Type = weakTypeOf[Field[_, _, _]]
 
     val tags =
       tpe.member(termNames.CONSTRUCTOR).asMethod.paramLists.flatten.flatMap {
         sym =>
           sym.annotations.collect {
-            case a if a.tree.tpe =:= fieldTpe =>
+            case a if a.tree.tpe <:< labelTpe =>
               val List(protoType, Literal(c@ Constant(n: Int))) = a.tree.children.tail
               val tag = internal.constantType(c)
-              appliedType(optionalAtt, protoType.tpe, tag)
+              appliedType(fieldTpe, a.tree.tpe, protoType.tpe, tag)
           }
       }
 
@@ -45,24 +45,42 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
 
     val clsName = TermName(c.freshName("anon$"))
     q"""
-      object $clsName extends Helper[$tpe] {
+      object $clsName extends SchemaHolder[$tpe] {
         type FD = $m
       }
-      $clsName: Helper.Aux[$tpe, $clsName.FD]
+      $clsName: SchemaHolder.Aux[$tpe, $clsName.FD]
     """
   }
 }
 
-sealed trait ProtoType
-
-object ProtoType {
-  case object Int32 extends ProtoType
-
-  case object Int64 extends ProtoType
-
-  case object String extends ProtoType
+sealed trait ProtoType {
+  def wireType: Int
 }
 
-case class Optional(protoType: ProtoType, tag: Int) extends StaticAnnotation
+object ProtoType {
+  case object Int32 extends ProtoType {
+    override def wireType: Int = 1
+  }
 
-sealed trait OptionalAtt[PT<:ProtoType, Tag]
+  case object Int64 extends ProtoType {
+    override def wireType: Int = 2
+  }
+
+  case object String extends ProtoType {
+    override def wireType: Int = 3
+  }
+
+  case object Message extends ProtoType {
+    override def wireType: Int = 4
+  }
+}
+
+sealed trait Label
+
+case class Optional(protoType: ProtoType, tag: Int) extends StaticAnnotation with Label
+
+case class Required(protoType: ProtoType, tag: Int) extends StaticAnnotation with Label
+
+case class Repeated(protoType: ProtoType, tag: Int) extends StaticAnnotation with Label
+
+sealed trait Field[LABEL <: Label, PT<:ProtoType, Tag]
