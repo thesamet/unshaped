@@ -12,32 +12,51 @@ sealed trait Msg
 case class Other(
   @Optional(Int32, 1) other: Int,
   @Optional(ProtoType.String, 2) bother: String,
+  @Optional(ProtoType.Int32, 3) vec: Int
 ) extends Msg
 
 case class Bar(
   @Optional(Int32, 44) x: Int,
   @Optional(ProtoType.String, 39) y: String,
-  @Optional(ProtoType.String, 75) z: String,
-  @Optional(ProtoType.Message, 75) o: Other
+  @Optional(ProtoType.String, 75) z: Option[String],
+  @Optional(ProtoType.Message, 17) o: Other
+) extends Msg
+
+case class Recursive(
+  @Optional(Int32, 1) value: Option[Int],
+  @Optional(ProtoType.Message, 2) next: Option[Recursive]
 ) extends Msg
 
 abstract class FieldSerializer[PT <: ProtoType, T] {
+  def isDefault(t: T): Boolean
+
   def serialize(cos: CodedOutputStream, t: T): Unit
 
   def serializedSize(t: T): Int
 }
 
 object FieldSerializer {
-  def apply[PT <: ProtoType, T](ser: (CodedOutputStream, T) => Unit, size: T => Int): FieldSerializer[PT, T] =
+  def apply[PT <: ProtoType, T](ser: (CodedOutputStream, T) => Unit, size: T => Int, default: T => Boolean): FieldSerializer[PT, T] =
     new FieldSerializer[PT, T] {
       override def serialize(cos: CodedOutputStream, t: T): Unit = ser(cos, t)
+
+      override def isDefault(t: T): Boolean = default(t)
 
       override def serializedSize(t: T): Int = size(t)
     }
 
-  implicit val int32Serializer = FieldSerializer[ProtoType.Int32.type, Int](_.writeInt32NoTag(_), CodedOutputStream.computeInt32SizeNoTag)
+  implicit val int32Serializer = FieldSerializer[ProtoType.Int32.type, Int](_.writeInt32NoTag(_), CodedOutputStream.computeInt32SizeNoTag, _ == 0)
 
-  implicit val stringSerializer = FieldSerializer[ProtoType.String.type, String](_.writeStringNoTag(_), CodedOutputStream.computeStringSizeNoTag)
+  implicit val stringSerializer = FieldSerializer[ProtoType.String.type, String](_.writeStringNoTag(_), CodedOutputStream.computeStringSizeNoTag, _.isEmpty)
+
+  implicit def optionFieldSerializer[PT <: ProtoType, T](implicit ser: FieldSerializer[PT, T]): FieldSerializer[PT, Option[T]] =
+    new FieldSerializer[PT, Option[T]] {
+      override def isDefault(t: Option[T]): Boolean = t.forall(ser.isDefault)
+
+      override def serialize(cos: CodedOutputStream, t: Option[T]): Unit = t.foreach(ser.serialize(cos, _))
+
+      override def serializedSize(t: Option[T]): Int = 0
+    }
 
   implicit def messageFieldSerializer[M](implicit ser: Serializer[M]) = FieldSerializer[ProtoType.Message.type, M](
     (cos, t) => {
@@ -47,7 +66,7 @@ object FieldSerializer {
       t =>
         val size = ser.serializedSize(t)
         CodedOutputStream.computeUInt32SizeNoTag(size) + size
-    }
+    }, _ => false
   )
 }
 
@@ -97,37 +116,25 @@ object Serializer {
     }, { t => CodedOutputStream.computeTagSize(tag) + fe.serializedSize(t.head) + tail.serializedSize(t.tail) })
   }
 
-//
-//    println(ev.value)
-//    println("  OPTIONAL " + et.value)
-//    tail.print
-//    Serializer[Field[Optional, PT, TAG] :: SCHEMATAIL]((cos, t) => {
-//      tail.serialize(cos, tail)
-//    }
-//  }
-
   /*
+  implicit def HListSerializerRepeated[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList](
+    implicit tagWitness: Witness.Aux[TAG],
+    prototypeWitness: Witness.Aux[PT],
+    fe: FieldSerializer[PT, TH],
+    tail: Serializer.Aux[TT, SCHEMATAIL]
+  ): Serializer.Aux[TH :: TT, Field[Repeated, PT, TAG] :: SCHEMATAIL] = {
 
-  implicit def HListSerializerRequired[PT <: ProtoType, TAG, TAIL <: HList](
-    implicit ev: Witness.Aux[TAG], et: Witness.Aux[PT], tail: Serializer[TAIL]): Serializer[Field[Required, PT, TAG] :: TAIL] =
-    new Serializer[Field[Required, PT, TAG] :: TAIL] {
-      override def print: Unit = {
-        println(ev.value)
-        println("  REQUIRED " + et.value)
-        tail.print
-      }
-    }
+    val tag = tagWitness.value
+    val pt = prototypeWitness.value
+    val wiretype = pt.wireType
 
-  implicit def HListSerializerRepeated[PT <: ProtoType, TAG, TAIL <: HList](
-    implicit ev: Witness.Aux[TAG], et: Witness.Aux[PT], tail: Serializer[TAIL]): Serializer[Field[Repeated, PT, TAG] :: TAIL] =
-    new Serializer[Field[Repeated, PT, TAG] :: TAIL] {
-      override def print: Unit = {
-        println(ev.value)
-        println("  REPEATED " + et.value)
-        tail.print
-      }
-    }
-    */
+    Serializer({ (cos, t) =>
+      cos.writeTag(tag, wiretype)
+      fe.serialize(cos, t.head)
+      tail.serialize(cos, t.tail)
+    }, { t => CodedOutputStream.computeTagSize(tag) + fe.serializedSize(t.head) + tail.serializedSize(t.tail) })
+  }
+  */
 
   implicit def fromHelper[T <: Msg, SCHEMA <: HList, G](
     implicit helper: SchemaHolder.Aux[T, SCHEMA], gen: Generic.Aux[T, G], pr: Serializer.Aux[G, SCHEMA]) =
@@ -139,11 +146,10 @@ object Serializer {
 class BasicSpec extends FlatSpec {
   "foo" should "bar" in {
     val helper = SchemaHolder[Bar]
+    val j: Serializer[Other] = implicitly[Serializer[Other]]
     val i: Serializer[Bar] = implicitly[Serializer[Bar]]
-    println(i.toByteArray(Bar(35, "foo", "koo",
-      Other(243, "foo")
+    println(i.toByteArray(Bar(35, "foo", Some("koo"),
+      Other(243, "", 9) // , Vector(3, 4, 5))
     )).toVector.map(_.toChar))
   }
-
-
 }
