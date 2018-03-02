@@ -12,14 +12,15 @@ sealed trait Msg
 case class Other(
   @Optional(Int32, 1) other: Int,
   @Optional(ProtoType.String, 2) bother: String,
-  @Optional(ProtoType.Int32, 3) vec: Int
+  @Optional(ProtoType.String, 2) mager: String = ""
 ) extends Msg
 
 case class Bar(
   @Optional(Int32, 44) x: Int,
   @Optional(ProtoType.String, 39) y: String,
   @Optional(ProtoType.String, 75) z: Option[String],
-  @Optional(ProtoType.Message, 17) o: Other
+  @Optional(ProtoType.Message, 17) o: Other,
+  @Repeated(ProtoType.Int32, 75) w: Vector[Int],
 ) extends Msg
 
 case class Recursive(
@@ -70,6 +71,23 @@ object FieldSerializer {
   )
 }
 
+abstract class RepeatedFieldSerializer[PT <: ProtoType, T] extends FieldSerializer[PT, T]
+
+object RepeatedFieldSerializer {
+  implicit def vectorFieldSerializer[PT <: ProtoType, T](implicit ser: FieldSerializer[PT, T]): RepeatedFieldSerializer[PT, Vector[T]] =
+    new RepeatedFieldSerializer[PT, Vector[T]] {
+      override def isDefault(t: Vector[T]): Boolean = t.isEmpty
+
+      override def serialize(cos: CodedOutputStream, t: Vector[T]): Unit = {
+        t.foreach(ser.serialize(cos, _))
+      }
+
+      override def serializedSize(t: Vector[T]): Int = 0
+    }
+}
+
+
+
 abstract class Serializer[T] {
   type SCHEMA
   def serialize(cos: CodedOutputStream, m: T): Unit
@@ -116,11 +134,10 @@ object Serializer {
     }, { t => CodedOutputStream.computeTagSize(tag) + fe.serializedSize(t.head) + tail.serializedSize(t.tail) })
   }
 
-  /*
   implicit def HListSerializerRepeated[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList](
     implicit tagWitness: Witness.Aux[TAG],
     prototypeWitness: Witness.Aux[PT],
-    fe: FieldSerializer[PT, TH],
+    fe: RepeatedFieldSerializer[PT, TH],
     tail: Serializer.Aux[TT, SCHEMATAIL]
   ): Serializer.Aux[TH :: TT, Field[Repeated, PT, TAG] :: SCHEMATAIL] = {
 
@@ -134,7 +151,6 @@ object Serializer {
       tail.serialize(cos, t.tail)
     }, { t => CodedOutputStream.computeTagSize(tag) + fe.serializedSize(t.head) + tail.serializedSize(t.tail) })
   }
-  */
 
   implicit def fromHelper[T <: Msg, SCHEMA <: HList, G](
     implicit helper: SchemaHolder.Aux[T, SCHEMA], gen: Generic.Aux[T, G], pr: Serializer.Aux[G, SCHEMA]) =
@@ -149,7 +165,10 @@ class BasicSpec extends FlatSpec {
     val j: Serializer[Other] = implicitly[Serializer[Other]]
     val i: Serializer[Bar] = implicitly[Serializer[Bar]]
     println(i.toByteArray(Bar(35, "foo", Some("koo"),
-      Other(243, "", 9) // , Vector(3, 4, 5))
-    )).toVector.map(_.toChar))
+      Other(243, ""),
+      Vector(1, 2, 3)
+    )).toVector)
   }
+
+
 }
