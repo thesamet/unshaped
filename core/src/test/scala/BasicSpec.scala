@@ -116,20 +116,22 @@ object Serializer {
 
   implicit def SerializerHNil: Serializer.Aux[HNil, HNil] = Serializer[HNil, HNil]((_, _) => {}, _ => 0)
 
-  implicit def HListSerializerOptional[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList, PACKED](
+  implicit def HListSerializerOptional[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList](
     implicit tagWitness: Witness.Aux[TAG],
     prototypeWitness: Witness.Aux[PT],
     fe: FieldSerializer[PT, TH],
     tail: Serializer.Aux[TT, SCHEMATAIL]
-  ): Serializer.Aux[TH :: TT, Field[Optional, PT, TAG, PACKED] :: SCHEMATAIL] = {
+  ): Serializer.Aux[TH :: TT, OptionalField[PT, TAG] :: SCHEMATAIL] = {
 
     val tag = tagWitness.value
     val pt = prototypeWitness.value
     val wiretype = pt.wireType
 
     Serializer({ (cos, t) =>
-      cos.writeTag(tag, wiretype)
-      fe.serialize(cos, t.head)
+      if (!fe.isDefault(t.head)) {
+        cos.writeTag(tag, wiretype)
+        fe.serialize(cos, t.head)
+      }
       tail.serialize(cos, t.tail)
     }, { t => CodedOutputStream.computeTagSize(tag) + fe.serializedSize(t.head) + tail.serializedSize(t.tail) })
   }
@@ -139,7 +141,7 @@ object Serializer {
     prototypeWitness: Witness.Aux[PT],
     fe: RepeatedFieldSerializer[PT, TH],
     tail: Serializer.Aux[TT, SCHEMATAIL]
-  ): Serializer.Aux[TH :: TT, Field[Repeated, PT, TAG, CFalse] :: SCHEMATAIL] = {
+  ): Serializer.Aux[TH :: TT, RepeatedField[PT, TAG, CFalse] :: SCHEMATAIL] = {
 
     val tag = tagWitness.value
     val pt = prototypeWitness.value
@@ -157,7 +159,7 @@ object Serializer {
     prototypeWitness: Witness.Aux[PT],
     fe: RepeatedFieldSerializer[PT, TH],
     tail: Serializer.Aux[TT, SCHEMATAIL]
-  ): Serializer.Aux[TH :: TT, Field[Repeated, PT, TAG, CTrue] :: SCHEMATAIL] = {
+  ): Serializer.Aux[TH :: TT, RepeatedField[PT, TAG, CTrue] :: SCHEMATAIL] = {
 
     val tag = tagWitness.value
     val pt = prototypeWitness.value

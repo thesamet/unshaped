@@ -28,8 +28,12 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
   def mkHelper[T : WeakTypeTag, R : WeakTypeTag]: Tree = {
     val tpe = weakTypeOf[T]
     val repeatedTpe: c.universe.Type = weakTypeOf[Repeated]
-    val labelTpe: c.universe.Type = weakTypeOf[Label]
-    val fieldTpe: c.universe.Type = weakTypeOf[Field[_, _, _, _]]
+    val optionalTpe: c.universe.Type = weakTypeOf[Optional]
+    val requiredTpe: c.universe.Type = weakTypeOf[Required]
+
+    val optionalTypeTpe: c.universe.Type = weakTypeOf[OptionalField[_, _]]
+    val requiredTypeTpe: c.universe.Type = weakTypeOf[RequiredField[_, _]]
+    val repeatedTypeTpe: c.universe.Type = weakTypeOf[RepeatedField[_, _, _]]
     val cTrue: c.universe.Type = weakTypeOf[CTrue]
     val cFalse: c.universe.Type = weakTypeOf[CFalse]
 
@@ -40,11 +44,15 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
             case a if a.tree.tpe =:= repeatedTpe =>
               val List(protoType, Literal(c@ Constant(_)), Literal(Constant(packed: Boolean))) = a.tree.children.tail
               val tag = internal.constantType(c)
-              appliedType(fieldTpe, a.tree.tpe, protoType.tpe, tag, if (packed) cTrue else cFalse)
-            case a if a.tree.tpe <:< labelTpe =>
+              appliedType(repeatedTypeTpe, protoType.tpe, tag, if (packed) cTrue else cFalse)
+            case a if a.tree.tpe <:< optionalTpe =>
               val List(protoType, Literal(c@ Constant(n: Int))) = a.tree.children.tail
               val tag = internal.constantType(c)
-              appliedType(fieldTpe, a.tree.tpe, protoType.tpe, tag, cTrue)
+              appliedType(optionalTypeTpe, protoType.tpe, tag)
+            case a if a.tree.tpe <:< requiredTpe =>
+              val List(protoType, Literal(c@ Constant(n: Int))) = a.tree.children.tail
+              val tag = internal.constantType(c)
+              appliedType(requiredTypeTpe, protoType.tpe, tag)
           }
       }
 
@@ -96,4 +104,11 @@ case class Required(protoType: ProtoType, tag: Int) extends StaticAnnotation wit
 
 case class Repeated(protoType: ProtoType, tag: Int, isPacked: Boolean) extends StaticAnnotation with Label
 
-sealed trait Field[LABEL <: Label, PT<:ProtoType, Tag, Packed]
+
+sealed trait FieldType
+
+sealed trait RequiredField[PT <: ProtoType, Tag <: Int] extends FieldType
+
+sealed trait OptionalField[PT <: ProtoType, Tag <: Int] extends FieldType
+
+sealed trait RepeatedField[PT <: ProtoType, Tag <: Int, Packed <: CBool] extends FieldType
