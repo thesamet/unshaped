@@ -1,13 +1,28 @@
 package scalapb.core
 
-import java.io.ByteArrayOutputStream
-
 import com.google.protobuf.CodedOutputStream
 import shapeless._
 
 import scalapb.macros._
 
-trait Msg
+trait Msg[T] {
+  self: T =>
+  @transient
+  private[scalapb] final var __cachedSerializedSize: Int = 0
+
+  final def serializedSize(default: T => Int) = {
+    var r = __cachedSerializedSize
+    if (r == 0) {
+      r = default(self)
+      __cachedSerializedSize = r
+    }
+    r
+  }
+}
+
+abstract class FakeGeneric[T, G] {
+  def to(t: T): G
+}
 
 abstract class FieldSerializer[PT <: ProtoType, T] {
   def isDefault(t: T): Boolean
@@ -31,9 +46,24 @@ object FieldSerializer {
       override def serializedSize(t: T): Int = size(t)
     }
 
+
   implicit val int32Serializer = FieldSerializer[ProtoType.Int32.type, Int](_.writeInt32NoTag(_), CodedOutputStream.computeInt32SizeNoTag, _ == 0)
 
   implicit val stringSerializer = FieldSerializer[ProtoType.String.type, String](_.writeStringNoTag(_), CodedOutputStream.computeStringSizeNoTag, _.isEmpty)
+
+  /*
+  implicit val stringSerializer: FieldSerializer[ProtoType.String.type, String] = new FieldSerializer[ProtoType.String.type, String] {
+    override def isDefault(t: String): Boolean = t.isEmpty
+
+    override def serializeOne(cos: CodedOutputStream, t: String): Unit = cos.writeStringNoTag(t)
+
+    override def serialize(cos: CodedOutputStream, tag: Int, t: String): Unit = cos.writeString(tag, t)
+
+    override def serializedSize(t: String): Int = CodedOutputStream.computeStringSizeNoTag(t)
+  }
+  */
+
+  /*
 
   implicit def optionFieldSerializer[PT <: ProtoType, T](implicit ser: FieldSerializer[PT, T]): FieldSerializer[PT, Option[T]] =
     new FieldSerializer[PT, Option[T]] {
@@ -56,6 +86,7 @@ object FieldSerializer {
         CodedOutputStream.computeUInt32SizeNoTag(size) + size
     }, _ => false
   )
+  */
 }
 
 abstract class RepeatedFieldSerializer[PT <: ProtoType, T] {
@@ -106,28 +137,32 @@ abstract class Serializer[T] {
   def serialize(cos: CodedOutputStream, m: T): Unit
 
   def toByteArray(t: T) = {
-    val baos = new ByteArrayOutputStream
-    val outputStream = CodedOutputStream.newInstance(baos)
+    val a = new Array[Byte](serializedSize(t))
+    val outputStream = CodedOutputStream.newInstance(a)
     serialize(outputStream, t)
-    outputStream.flush()
-    baos.toByteArray
+    outputStream.checkNoSpaceLeft()
+    a
   }
 
   def serializedSize(t: T): Int
 }
 
+abstract class MessageSerializer[T] extends Serializer[T] {
+  def serialize(cos: CodedOutputStream, m: T): Unit
+
+  def serializedSizeNoCache(t: T): Int
+}
+
 object Serializer {
-  type Aux[T, SCHEMA0] = Serializer[T] { type SCHEMA = SCHEMA0 }
+  type Aux[T, SCHEMA0] = Serializer[T] {type SCHEMA = SCHEMA0}
 
-  def apply[T, SCHEMA0](ser: (CodedOutputStream, T) => Unit, size: T => Int): Serializer.Aux[T, SCHEMA0] =
-    new Serializer[T] {
-      type SCHEMA = SCHEMA0
-      override def serialize(cos: CodedOutputStream, t: T) = ser(cos, t)
+  implicit val SerializerHNil: Serializer.Aux[HNil, HNil] = new Serializer[HNil] {
+    override type SCHEMA = HNil
 
-      override def serializedSize(t: T) = size(t)
-    }
+    override def serialize(cos: CodedOutputStream, m: HNil): Unit = {}
 
-  implicit def SerializerHNil: Serializer.Aux[HNil, HNil] = Serializer[HNil, HNil]((_, _) => {}, _ => 0)
+    override def serializedSize(t: HNil): Int = 0
+  }
 
   implicit def HListSerializerOptional[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList](
     implicit tagWitness: Witness.Aux[TAG],
@@ -135,20 +170,30 @@ object Serializer {
     fe: FieldSerializer[PT, TH],
     tail: Serializer.Aux[TT, SCHEMATAIL]
   ): Serializer.Aux[TH :: TT, OptionalField[PT, TAG] :: SCHEMATAIL] = {
-
     val tag = tagWitness.value
     val pt = prototypeWitness.value
     val wiretype = pt.wireType
 
-    Serializer({ (cos, t) =>
-      if (!fe.isDefault(t.head)) {
-        cos.writeTag(tag, wiretype)
-        fe.serializeOne(cos, t.head)
+    new Serializer[TH :: TT] {
+      type SCHEMA = OptionalField[PT, TAG] :: SCHEMATAIL
+
+
+      override def serialize(cos: CodedOutputStream, t: TH :: TT): Unit = {
+        val h = t.head
+        if (!fe.isDefault(h)) {
+          cos.writeTag(tag, wiretype)
+          fe.serializeOne(cos, h)
+        }
+        tail.serialize(cos, t.tail)
       }
-      tail.serialize(cos, t.tail)
-    }, { t => CodedOutputStream.computeTagSize(tag) + fe.serializedSize(t.head) + tail.serializedSize(t.tail) })
+
+      override def serializedSize(t: TH :: TT): Int = {
+        CodedOutputStream.computeTagSize(tag) + fe.serializedSize(t.head) + tail.serializedSize(t.tail)
+      }
+    }
   }
 
+  /*
   implicit def HListSerializerRepeated[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList](
     implicit tagWitness: Witness.Aux[TAG],
     prototypeWitness: Witness.Aux[PT],
@@ -183,11 +228,22 @@ object Serializer {
       tail.serialize(cos, t.tail)
     }, { t => CodedOutputStream.computeTagSize(tag) + fe.serializedPackedSize(tag, t.head) + tail.serializedSize(t.tail) })
   }
+  */
+}
 
-  implicit def fromHelper[T <: Msg, SCHEMA <: HList, G](
-    implicit helper: SchemaHolder.Aux[T, SCHEMA], gen: Generic.Aux[T, G], pr: Serializer.Aux[G, SCHEMA]) =
-    Serializer[T, SCHEMA]((cos, t) => {
-      pr.serialize(cos, gen.to(t))
-    }, t => pr.serializedSize(gen.to(t)))
+  object MessageSerializer {
+    implicit def fromHelper[T <: Msg[T], SCHEMA0 <: HList, G](
+    implicit helper: SchemaHolder.Aux[T, SCHEMA0], gen: Generic.Aux[T, G], pr: Serializer.Aux[G, SCHEMA0]): MessageSerializer[T] =
+      new MessageSerializer[T] {
+        type SCHEMA = SCHEMA0
+
+        override def serialize(cos: CodedOutputStream, m: T): Unit = {
+          pr.serialize(cos, gen.to(m))
+        }
+
+        override def serializedSize(t: T): Int = t.serializedSize(serializedSizeNoCache)
+
+        override def serializedSizeNoCache(t: T): Int = pr.serializedSize(gen.to(t))
+      }
 }
 

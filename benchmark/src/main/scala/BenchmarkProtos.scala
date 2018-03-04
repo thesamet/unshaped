@@ -2,22 +2,41 @@ package scalapb.benchmark
 
 import scalapb.core._
 import scalapb.macros._
-import scalapb.macros.ProtoType._
 import java.util.concurrent.TimeUnit
 
 import org.openjdk.jmh.annotations._
+import shapeless._
+
+import scalapb.macros.ProtoType.Int32
 
 case class SimpleMessage(
-  @Optional(Int32, 44) x: Int,
-  @Optional(ProtoType.String, 39) y: String
-) extends Msg
+//  @Optional(Int32, 44) x: Int,
+  @Optional(ProtoType.String, 21) x: String,
+  @Optional(ProtoType.String, 39) y: String,
+  @Optional(ProtoType.String, 47) z: String
+) extends Msg[SimpleMessage] {
+  self =>
+
+  /*
+  */
+}
+
+
+object SimpleMessage {
+  final val cst = "foobar" :: HNil
+
+  implicit val fg: FakeGeneric[SimpleMessage, String :: HNil] = new FakeGeneric[SimpleMessage, String :: HNil] {
+    override def to(t: SimpleMessage) = cst
+  }
+}
 
 @State(Scope.Benchmark)
 class UnshapedState {
-  val s = implicitly[scalapb.core.Serializer[SimpleMessage]]
-  val msg = SimpleMessage(125, "foobar")
-  val genMsg = scalapb.gen.gen.SimpleMessageGen(x = 125, y = "foobar")
-
+  val s = implicitly[scalapb.core.MessageSerializer[SimpleMessage]]
+  val msg = SimpleMessage(x = "poo", y = "foobar", z = "pak")
+  val genMsg = scalapb.gen.gen.SimpleMessageGen(x = "poo", y = "foobar", z = "pak")
+  println("XXX" ,s.serializedSize(msg))
+  println("YYY", genMsg.serializedSize)
 }
 
 class BenchmarkProtos {
