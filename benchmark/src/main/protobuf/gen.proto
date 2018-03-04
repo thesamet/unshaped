@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package scalapb.gen;
+
+message SimpleMessageGen {
+  int32 x = 44;
+  string y = 39;
+}

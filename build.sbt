@@ -43,6 +43,12 @@ lazy val core = project.in(file("core")).dependsOn(macros).settings(
   libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.12.0",
 )
 
+lazy val benchmark = project.in(file("benchmark")).dependsOn(core).settings(
+  PB.targets in Compile := Seq(
+    scalapb.gen() -> (sourceManaged in Compile).value
+  )
+).enablePlugins(JmhPlugin)
+
 lazy val root =
   project.in(file("."))
     .aggregate(macros, core)
