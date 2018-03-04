@@ -20,7 +20,7 @@ case class Bar(
   @Optional(ProtoType.String, 39) y: String,
   @Optional(ProtoType.String, 75) z: Option[String],
   @Optional(ProtoType.Message, 17) o: Other,
-  @Repeated(ProtoType.Int32, 75) w: Vector[Int],
+  @Repeated(ProtoType.Int32, 75, true) w: Vector[Int],
 ) extends Msg
 
 case class Recursive(
@@ -56,7 +56,7 @@ object FieldSerializer {
 
       override def serialize(cos: CodedOutputStream, t: Option[T]): Unit = t.foreach(ser.serialize(cos, _))
 
-      override def serializedSize(t: Option[T]): Int = 0
+      override def serializedSize(t: Option[T]): Int = t.map(ser.serializedSize).getOrElse(0)
     }
 
   implicit def messageFieldSerializer[M](implicit ser: Serializer[M]) = FieldSerializer[ProtoType.Message.type, M](
@@ -116,12 +116,12 @@ object Serializer {
 
   implicit def SerializerHNil: Serializer.Aux[HNil, HNil] = Serializer[HNil, HNil]((_, _) => {}, _ => 0)
 
-  implicit def HListSerializerOptional[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList](
+  implicit def HListSerializerOptional[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList, PACKED](
     implicit tagWitness: Witness.Aux[TAG],
     prototypeWitness: Witness.Aux[PT],
     fe: FieldSerializer[PT, TH],
     tail: Serializer.Aux[TT, SCHEMATAIL]
-  ): Serializer.Aux[TH :: TT, Field[Optional, PT, TAG] :: SCHEMATAIL] = {
+  ): Serializer.Aux[TH :: TT, Field[Optional, PT, TAG, PACKED] :: SCHEMATAIL] = {
 
     val tag = tagWitness.value
     val pt = prototypeWitness.value
@@ -139,7 +139,25 @@ object Serializer {
     prototypeWitness: Witness.Aux[PT],
     fe: RepeatedFieldSerializer[PT, TH],
     tail: Serializer.Aux[TT, SCHEMATAIL]
-  ): Serializer.Aux[TH :: TT, Field[Repeated, PT, TAG] :: SCHEMATAIL] = {
+  ): Serializer.Aux[TH :: TT, Field[Repeated, PT, TAG, CFalse] :: SCHEMATAIL] = {
+
+    val tag = tagWitness.value
+    val pt = prototypeWitness.value
+    val wiretype = pt.wireType
+
+    Serializer({ (cos, t) =>
+      cos.writeTag(tag, wiretype)
+      fe.serialize(cos, t.head)
+      tail.serialize(cos, t.tail)
+    }, { t => CodedOutputStream.computeTagSize(tag) + fe.serializedSize(t.head) + tail.serializedSize(t.tail) })
+  }
+
+  implicit def HListSerializerPackedRepeated[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList](
+    implicit tagWitness: Witness.Aux[TAG],
+    prototypeWitness: Witness.Aux[PT],
+    fe: RepeatedFieldSerializer[PT, TH],
+    tail: Serializer.Aux[TT, SCHEMATAIL]
+  ): Serializer.Aux[TH :: TT, Field[Repeated, PT, TAG, CTrue] :: SCHEMATAIL] = {
 
     val tag = tagWitness.value
     val pt = prototypeWitness.value

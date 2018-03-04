@@ -27,17 +27,24 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
 
   def mkHelper[T : WeakTypeTag, R : WeakTypeTag]: Tree = {
     val tpe = weakTypeOf[T]
+    val repeatedTpe: c.universe.Type = weakTypeOf[Repeated]
     val labelTpe: c.universe.Type = weakTypeOf[Label]
-    val fieldTpe: c.universe.Type = weakTypeOf[Field[_, _, _]]
+    val fieldTpe: c.universe.Type = weakTypeOf[Field[_, _, _, _]]
+    val cTrue: c.universe.Type = weakTypeOf[CTrue]
+    val cFalse: c.universe.Type = weakTypeOf[CFalse]
 
     val tags =
       tpe.member(termNames.CONSTRUCTOR).asMethod.paramLists.flatten.flatMap {
         sym =>
           sym.annotations.collect {
+            case a if a.tree.tpe =:= repeatedTpe =>
+              val List(protoType, Literal(c@ Constant(_)), Literal(Constant(packed: Boolean))) = a.tree.children.tail
+              val tag = internal.constantType(c)
+              appliedType(fieldTpe, a.tree.tpe, protoType.tpe, tag, if (packed) cTrue else cFalse)
             case a if a.tree.tpe <:< labelTpe =>
               val List(protoType, Literal(c@ Constant(n: Int))) = a.tree.children.tail
               val tag = internal.constantType(c)
-              appliedType(fieldTpe, a.tree.tpe, protoType.tpe, tag)
+              appliedType(fieldTpe, a.tree.tpe, protoType.tpe, tag, cTrue)
           }
       }
 
@@ -75,12 +82,18 @@ object ProtoType {
   }
 }
 
+sealed trait CBool
+
+sealed trait CTrue extends CBool
+
+sealed trait CFalse extends CBool
+
 sealed trait Label
 
 case class Optional(protoType: ProtoType, tag: Int) extends StaticAnnotation with Label
 
 case class Required(protoType: ProtoType, tag: Int) extends StaticAnnotation with Label
 
-case class Repeated(protoType: ProtoType, tag: Int) extends StaticAnnotation with Label
+case class Repeated(protoType: ProtoType, tag: Int, isPacked: Boolean) extends StaticAnnotation with Label
 
-sealed trait Field[LABEL <: Label, PT<:ProtoType, Tag]
+sealed trait Field[LABEL <: Label, PT<:ProtoType, Tag, Packed]
