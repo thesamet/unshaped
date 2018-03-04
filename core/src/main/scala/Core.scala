@@ -233,7 +233,7 @@ object Serializer {
 
   object MessageSerializer {
     implicit def fromHelper[T <: Msg[T], SCHEMA0 <: HList, G](
-    implicit helper: SchemaHolder.Aux[T, SCHEMA0], gen: Generic.Aux[T, G], pr: Serializer.Aux[G, SCHEMA0]): MessageSerializer[T] =
+    implicit helper: SchemaHolder.Aux[T, SCHEMA0], gen: FakeGeneric[T, G], pr: Serializer.Aux[G, SCHEMA0]): MessageSerializer[T] =
       new MessageSerializer[T] {
         type SCHEMA = SCHEMA0
 

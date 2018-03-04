@@ -23,9 +23,9 @@ case class SimpleMessage(
 
 
 object SimpleMessage {
-  final val cst = "foobar" :: HNil
+  final val cst = "poo" :: "foobar" :: "pak" :: HNil
 
-  implicit val fg: FakeGeneric[SimpleMessage, String :: HNil] = new FakeGeneric[SimpleMessage, String :: HNil] {
+  implicit val fg: FakeGeneric[SimpleMessage, String :: String :: String :: HNil] = new FakeGeneric[SimpleMessage, String :: String :: String :: HNil] {
     override def to(t: SimpleMessage) = cst
   }
 }
