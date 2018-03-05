@@ -24,7 +24,9 @@ abstract class FakeGeneric[T, G] {
   def to(t: T): G
 }
 
-abstract class FieldSerializer[PT <: ProtoType, T] {
+abstract class FieldSerializer[T] {
+  type PT <: ProtoType
+
   def isDefault(t: T): Boolean
 
   def serializeOne(cos: CodedOutputStream, t: T): Unit
@@ -35,8 +37,14 @@ abstract class FieldSerializer[PT <: ProtoType, T] {
 }
 
 object FieldSerializer {
-  def apply[PT <: ProtoType, T](ser: (CodedOutputStream, T) => Unit, size: T => Int, default: T => Boolean): FieldSerializer[PT, T] =
-    new FieldSerializer[PT, T] {
+  type Aux[T, PT0] = FieldSerializer[T] {
+    type PT = PT0
+  }
+
+  def apply[PT0 <: ProtoType, T](ser: (CodedOutputStream, T) => Unit, size: T => Int, default: T => Boolean): FieldSerializer.Aux[T, PT0] =
+    new FieldSerializer[T] {
+      type PT = PT0
+
       override def serializeOne(cos: CodedOutputStream, t: T): Unit = ser(cos, t)
 
       override def serialize(cos: CodedOutputStream, tag: Int, t: T): Unit = ser(cos, t)
@@ -103,7 +111,7 @@ abstract class RepeatedFieldSerializer[PT <: ProtoType, T] {
 }
 
 object RepeatedFieldSerializer {
-  implicit def vectorFieldSerializer[PT <: ProtoType, T](implicit ser: FieldSerializer[PT, T]): RepeatedFieldSerializer[PT, Vector[T]] =
+  implicit def vectorFieldSerializer[PT <: ProtoType, T](implicit ser: FieldSerializer.Aux[T, PT]): RepeatedFieldSerializer[PT, Vector[T]] =
     new RepeatedFieldSerializer[PT, Vector[T]] {
       override def serialize(cos: CodedOutputStream, tag: Int, t: Vector[T]): Unit = {
         t.foreach(ser.serialize(cos, tag, _))
@@ -167,7 +175,7 @@ object Serializer {
   implicit def HListSerializerOptional[PT <: ProtoType, TAG <: Int, SCHEMATAIL <: HList, TH, TT <: HList](
     implicit tagWitness: Witness.Aux[TAG],
     prototypeWitness: Witness.Aux[PT],
-    fe: FieldSerializer[PT, TH],
+    fe: FieldSerializer.Aux[TH, PT],
     tail: Serializer.Aux[TT, SCHEMATAIL]
   ): Serializer.Aux[TH :: TT, OptionalField[PT, TAG] :: SCHEMATAIL] = {
     val tag = tagWitness.value

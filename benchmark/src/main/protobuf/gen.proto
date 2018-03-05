@@ -6,5 +6,5 @@ message SimpleMessageGen {
   // int32 x = 44;
   string x = 21;
   string y = 39;
-  string z = 77;
+  string z = 47;
 }

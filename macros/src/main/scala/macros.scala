@@ -82,7 +82,7 @@ object ProtoType {
   }
 
   case object String extends ProtoType {
-    override def wireType: Int = 3
+    override def wireType: Int = 2
   }
 
   case object Message extends ProtoType {
