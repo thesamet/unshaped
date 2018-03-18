@@ -35,18 +35,28 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
     val members = tpe.member(termNames.CONSTRUCTOR).asMethod.paramLists.flatten.sortBy(
       m => extractTag(m.annotations.head)
     )
+    val messageType = weakTypeOf[ProtoType.Message.type]
 
     val types = members
       .map {
         sym =>
           val innerType = sym.typeSignatureIn(tpe).finalResultType
           val pt = extractProtoType(sym.annotations.head)
-          val ap = if (isRepeated(sym.annotations.head))
-            appliedType(packedfs, pt, innerType)
-          else
-            appliedType(fs, pt, innerType)
+          val ap = {
+            val p = if (isRepeated(sym.annotations.head))
+              appliedType(packedfs, pt, innerType)
+            else
+              appliedType(fs, pt, innerType)
+            p
+          }
           q"${TermName(sym.name.decodedName.toString)}: $ap"
       }
+
+    def serializerSym(sym: Symbol): Tree = {
+      val termName = TermName(sym.name.decodedName.toString)
+      val pt = extractProtoType(sym.annotations.head)
+      q"$termName"
+    }
 
     def getOrUpdateCache(obj: Ident, sym: Symbol): Tree =  {
       val cacheName = TermName("__cached_" + sym.name.decodedName.toString)
@@ -56,7 +66,7 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
         q"""{
               var __c = $obj.$cacheName
               if (__c == 0) {
-                  __c = _root_.com.google.protobuf.CodedOutputStream.computeTagSize(${tag}) + $termName.serializedSizeNoTag(__v.${termName})
+                  __c = _root_.com.google.protobuf.CodedOutputStream.computeTagSize(${tag}) + ${serializerSym(sym)}.serializedSizeNoTag(__v.${termName})
                   __v.$cacheName = __c
               }
               __c
@@ -69,9 +79,9 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
           val termName = TermName(sym.name.decodedName.toString)
 
           if (isRepeated(sym.annotations.head)) {
-            q"${termName}.serializeWithKnownSize(__cos, $tag, ${getOrUpdateCache(q"__v", sym)}, __v.$termName)"
+            q"${serializerSym(sym)}.serializeWithKnownSize(__cos, $tag, ${getOrUpdateCache(q"__v", sym)}, __v.$termName)"
           } else {
-            q"${termName}.serialize(__cos, $tag, __v.$termName)"
+            q"${serializerSym(sym)}.serialize(__cos, $tag, __v.$termName)"
           }
       }
 
@@ -83,7 +93,7 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
           if (isRepeated(sym.annotations.head)) {
             q"""__size += ${getOrUpdateCache(q"__v", sym)}"""
           } else {
-            q"__size += _root_.com.google.protobuf.CodedOutputStream.computeTagSize(${tag}) + $termName.serializedSizeNoTag(__v.$termName)"
+            q"__size += _root_.com.google.protobuf.CodedOutputStream.computeTagSize(${tag}) + ${serializerSym(sym)}.serializedSizeNoTag(__v.$termName)"
           }
       }
 

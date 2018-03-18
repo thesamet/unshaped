@@ -31,7 +31,6 @@ abstract class FieldSerializer[PT <: ProtoType, @specialized R] {
   def serializedSizeNoTag(r: R): Int
 
   def serialize(cos: CodedOutputStream, tag: Int, r: R): Unit
-
 }
 
 abstract class PackedRepeatedFieldSerializer[PT <: ProtoType, T] extends FieldSerializer[PT, T] {
@@ -45,7 +44,41 @@ object FieldSerializer {
 
   implicit val intSerializer: FieldSerializer[ProtoType.Int32.type, Int] = new Int32Serializer
 
-  implicit def vectorSerializer[PT <: ProtoType, T](implicit fieldSerializer: FieldSerializer[PT, T]): PackedRepeatedFieldSerializer[PT, Vector[T]] = new VectorSerializer[PT, T]
+  implicit def vectorSerializer[PT <: ProtoType, T](implicit
+    fieldSerializer: FieldSerializer[PT, T]): PackedRepeatedFieldSerializer[PT, Vector[T]] = new VectorSerializer[PT, T]
+
+  implicit def optionSerializer[PT <: ProtoType, T](implicit
+    fieldSerializer: FieldSerializer[PT, T]): FieldSerializer[PT, Option[T]] =
+    new FieldSerializer[PT, Option[T]] {
+      override def serializedSizeNoTag(r: Option[T]): Int =
+        if (r.isDefined) fieldSerializer.serializedSizeNoTag(r.get)
+        else 0
+
+      override def serialize(cos: CodedOutputStream, tag: Int, r: Option[T]): Unit = r match {
+        case Some(v) => fieldSerializer.serialize(cos, tag, v)
+        case None =>
+      }
+
+      override def serializeNoTag(cos: CodedOutputStream, r: Option[T]): Unit = r match {
+        case Some(v) => fieldSerializer.serializeNoTag(cos, v)
+        case None =>
+      }
+    }
+
+  implicit def messageSerializer[T <: Msg[T]](implicit sr: Serializer[T]): FieldSerializer[ProtoType.Message.type, T] =
+    new FieldSerializer[ProtoType.Message.type, T] {
+      override def serializeNoTag(cos: CodedOutputStream, r: T): Unit = {
+        cos.writeUInt32NoTag(sr.serializedSize(r))
+        sr.serialize(cos, r)
+      }
+
+      override def serializedSizeNoTag(r: T): Int = sr.serializedSize(r) + CodedOutputStream.computeUInt32SizeNoTag(sr.serializedSize(r))
+
+      override def serialize(cos: CodedOutputStream, tag: Int, r: T): Unit = {
+        cos.writeTag(tag, 2)
+        serializeNoTag(cos, r)
+      }
+    }
 }
 
 final class VectorSerializer[PT <: ProtoType, T](implicit fieldSerializer: FieldSerializer[PT, T]) extends PackedRepeatedFieldSerializer[PT, Vector[T]] {
