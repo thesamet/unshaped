@@ -7,4 +7,6 @@ message SimpleMessageGen {
   string x = 21;
   string y = 39;
   string z = 47;
+  int32 i = 15;
+  repeated int32 r = 19;
 }

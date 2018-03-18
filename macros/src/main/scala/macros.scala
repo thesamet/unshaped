@@ -1,12 +1,14 @@
 package scalapb.macros
 
+import com.google.protobuf.CodedOutputStream
 import shapeless.{CaseClassMacros, HNil, Witness}
 
 import scala.language.experimental.macros
-import scala.annotation.{Annotation, ClassfileAnnotation, StaticAnnotation}
+import scala.annotation.{ClassfileAnnotation, StaticAnnotation}
 import scala.reflect.macros.{blackbox, whitebox}
 import macrocompat.bundle
 import shapeless._
+import scalapb.core3.{FieldSerializer, PackedRepeatedFieldSerializer}
 
 trait SchemaHolder[T] {
   type FD
@@ -25,11 +27,127 @@ object SchemaHolder {
 class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonTypeUtils {
   import c.universe._
 
+  def mkSerializer[T : WeakTypeTag]: Tree = {
+    val tpe = weakTypeOf[T]
+    val fs = weakTypeOf[FieldSerializer[_, _]]
+    val packedfs = weakTypeOf[PackedRepeatedFieldSerializer[_, _]]
+    val iTpe  = weakTypeOf[Int]
+    val members = tpe.member(termNames.CONSTRUCTOR).asMethod.paramLists.flatten.sortBy(
+      m => extractTag(m.annotations.head)
+    )
+
+    val types = members
+      .map {
+        sym =>
+          val innerType = sym.typeSignatureIn(tpe).finalResultType
+          val pt = extractProtoType(sym.annotations.head)
+          val ap = if (isRepeated(sym.annotations.head))
+            appliedType(packedfs, pt, innerType)
+          else
+            appliedType(fs, pt, innerType)
+          q"${TermName(sym.name.decodedName.toString)}: $ap"
+      }
+
+    def getOrUpdateCache(obj: Ident, sym: Symbol): Tree =  {
+      val cacheName = TermName("__cached_" + sym.name.decodedName.toString)
+      val termName = TermName(sym.name.decodedName.toString)
+      val tag = extractTag(sym.annotations.head)
+
+        q"""{
+              var __c = $obj.$cacheName
+              if (__c == 0) {
+                  __c = _root_.com.google.protobuf.CodedOutputStream.computeTagSize(${tag}) + $termName.serializedSizeNoTag(__v.${termName})
+                  __v.$cacheName = __c
+              }
+              __c
+           }"""
+    }
+
+    val serStatements = members.map {
+        sym =>
+          val tag = extractTag(sym.annotations.head)
+          val termName = TermName(sym.name.decodedName.toString)
+
+          if (isRepeated(sym.annotations.head)) {
+            q"${termName}.serializeWithKnownSize(__cos, $tag, ${getOrUpdateCache(q"__v", sym)}, __v.$termName)"
+          } else {
+            q"${termName}.serialize(__cos, $tag, __v.$termName)"
+          }
+      }
+
+    val serSize = members.map {
+        sym =>
+          val tag = extractTag(sym.annotations.head)
+          val termName = TermName(sym.name.decodedName.toString)
+          val cacheName = TermName("__cached_" + sym.name.decodedName.toString)
+          if (isRepeated(sym.annotations.head)) {
+            q"""__size += ${getOrUpdateCache(q"__v", sym)}"""
+          } else {
+            q"__size += _root_.com.google.protobuf.CodedOutputStream.computeTagSize(${tag}) + $termName.serializedSizeNoTag(__v.$termName)"
+          }
+      }
+
+    val clsName = TypeName(c.freshName("anon$"))
+    val f = q"""
+       class $clsName(implicit ..$types) extends _root_.scalapb.core3.Serializer[$tpe] {
+         def serialize(__cos: _root_.com.google.protobuf.CodedOutputStream, __v: $tpe): Unit = {
+           ..$serStatements
+         }
+
+         def serializedSize(__v: $tpe): Int = {
+           var __size = __v.__cachedSerializedSize
+           if (__size == 0) {
+             ..$serSize
+             __v.__cachedSerializedSize = __size
+           }
+           __size
+         }
+       }
+       new $clsName
+     """
+    println(f)
+    f
+  }
+
+  val repeatedTpe: c.universe.Type = weakTypeOf[Repeated]
+  val optionalTpe: c.universe.Type = weakTypeOf[Optional]
+  val requiredTpe: c.universe.Type = weakTypeOf[Required]
+
+  def isRepeated(x: Annotation): Boolean = x match {
+    case a if a.tree.tpe =:= repeatedTpe =>
+      true
+    case a if a.tree.tpe <:< optionalTpe =>
+      false
+    case a if a.tree.tpe <:< requiredTpe =>
+      false
+  }
+
+  def extractTag(x: Annotation): Int = x match {
+    case a if a.tree.tpe =:= repeatedTpe =>
+      val List(protoType, Literal(Constant(n: Int)), Literal(Constant(packed: Boolean))) = a.tree.children.tail
+      n
+    case a if a.tree.tpe <:< optionalTpe =>
+      val List(protoType, Literal(c@ Constant(n: Int))) = a.tree.children.tail
+      n
+    case a if a.tree.tpe <:< requiredTpe =>
+      val List(protoType, Literal(c@ Constant(n: Int))) = a.tree.children.tail
+      n
+  }
+
+  def extractProtoType(x: Annotation): Type = x match {
+    case a if a.tree.tpe =:= repeatedTpe =>
+      val List(protoType, Literal(Constant(n: Int)), Literal(Constant(packed: Boolean))) = a.tree.children.tail
+      protoType.tpe
+    case a if a.tree.tpe <:< optionalTpe =>
+      val List(protoType, Literal(c@ Constant(n: Int))) = a.tree.children.tail
+      protoType.tpe
+    case a if a.tree.tpe <:< requiredTpe =>
+      val List(protoType, Literal(c@ Constant(n: Int))) = a.tree.children.tail
+      protoType.tpe
+  }
+
   def mkHelper[T : WeakTypeTag, R : WeakTypeTag]: Tree = {
     val tpe = weakTypeOf[T]
-    val repeatedTpe: c.universe.Type = weakTypeOf[Repeated]
-    val optionalTpe: c.universe.Type = weakTypeOf[Optional]
-    val requiredTpe: c.universe.Type = weakTypeOf[Required]
 
     val optionalTypeTpe: c.universe.Type = weakTypeOf[OptionalField[_, _]]
     val requiredTypeTpe: c.universe.Type = weakTypeOf[RequiredField[_, _]]
