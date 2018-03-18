@@ -49,8 +49,7 @@ object FieldSerializer {
 }
 
 final class VectorSerializer[PT <: ProtoType, T](implicit fieldSerializer: FieldSerializer[PT, T]) extends PackedRepeatedFieldSerializer[PT, Vector[T]] {
-  @inline
-  private def writeContent(cos: CodedOutputStream, r: Vector[T]): Unit = {
+  final private def writeContent(cos: CodedOutputStream, r: Vector[T]): Unit = {
     var i = 0
     while (i < r.size) {
       fieldSerializer.serializeNoTag(cos, r(i))
@@ -63,10 +62,14 @@ final class VectorSerializer[PT <: ProtoType, T](implicit fieldSerializer: Field
     writeContent(cos, r)
   }
 
-  final override def serializeWithKnownSize(cos: CodedOutputStream, tag: Int, knownSize: Int, t: Vector[T]): Unit = {
+  final override def serializeWithKnownSize(cos: CodedOutputStream, tag: Int, knownSize: Int, r: Vector[T]): Unit = {
     cos.writeTag(tag, 2)
     cos.writeUInt32NoTag(knownSize)
-    writeContent(cos, t)
+    var i = 0
+    while (i < r.size) {
+      fieldSerializer.serializeNoTag(cos, r(i))
+      i += 1
+    }
   }
 
   final override def contentSize(r: Vector[T]): Int = {
