@@ -39,6 +39,14 @@ case class SimpleMessage(
   */
 }
 
+case class SII(
+  @Optional(ProtoType.String, 1) x: String,
+  @Optional(ProtoType.String, 2) y: String,
+  @Optional(ProtoType.Int32, 3) z: Int,
+  @Optional(ProtoType.Int32, 4) w: Int) extends Msg[SII] {
+
+}
+
 /*
 class MyManualSerializer(
   implicit
@@ -114,6 +122,8 @@ class UnshapedState {
   val msg = SimpleMessage(x = "poo", y = "foobar", z = "pak", i = 17, r = r)
   val genMsg = scalapb.gen.gen.SimpleMessageGen(x = "poo", y = "foobar", z = "pak", i = 17, r = r)
   val macroSer = scalapb.core3.Serializer.makeSerializer[SimpleMessage]
+  val macroSII = scalapb.core3.Serializer.makeSerializer[SII]
+  val shapelessSII = scalapb.core4.MessageSerializer[SII]
 //  println("XXX" ,s.serializedSize(msg))
   println("XXX S3", macroSer.serializedSize(msg))
   println("XXX",   genMsg.toByteArray.map(_.toInt).toVector)
@@ -153,5 +163,24 @@ class BenchmarkProtos {
     val msg = SimpleMessage(x = "poo", y = "foobar", z = "pak", i = 17, r = state.r)
 
     state.macroSer.toByteArray(msg)
+  }
+
+  @Benchmark
+  @BenchmarkMode(Array(Mode.AverageTime))
+  @OutputTimeUnit(TimeUnit.NANOSECONDS)
+  def serializeMacroSII(state: UnshapedState): Unit = {
+
+    val sii = SII("foo", "bar", 35, 17)
+    state.macroSII.toByteArray(sii)
+  }
+
+  @Benchmark
+  @BenchmarkMode(Array(Mode.AverageTime))
+  @OutputTimeUnit(TimeUnit.NANOSECONDS)
+  def serializeShapelessSII(state: UnshapedState): Unit = {
+    val sii = SII("foo", "bar", 35, 17)
+    state.shapelessSII.toByteArray(sii)
+
+//    state.macroSII.toByteArray(msg)
   }
 }
