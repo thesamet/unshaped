@@ -1,7 +1,8 @@
 package scalapb.core4
 
 import com.google.protobuf.{CodedOutputStream, WireFormat}
-import shapeless.{::, HList, HNil, Lazy}
+import shapeless.ops.nat.ToInt
+import shapeless.{::, HList, HNil, Lazy, Nat, Succ}
 
 sealed trait ProtoType
 
@@ -85,10 +86,38 @@ abstract class MessageSerializer[T] {
   }
 }
 
+abstract class HListSerializer[N <: Nat, R] extends MessageSerializer[R]
+
+object HListSerializer {
+
+  implicit def hlistNilSerializer[N <: Nat, R] = new HListSerializer[N, HNil] {
+    override def serializedSize(value: HNil): Int = 0
+
+    override def serialize(cos: CodedOutputStream, value: HNil): Unit = {}
+  }
+
+  implicit def hlistSerializer[N <: Nat, PT <: ProtoType, H, T <: HList](
+    implicit fieldSer: FieldSerializer[PT, H], tail: HListSerializer[Succ[N], T], tag: ToInt[N]): HListSerializer[N, H :: T] =
+    new HListSerializer[N, H :: T] {
+
+      override def serializedSize(value: H :: T): Int = {
+        val sz = fieldSer.serializedSize(value.head)
+        val r = (if (sz > 0) (sz + CodedOutputStream.computeTagSize(tag())) else 0) + tail.serializedSize(value.tail)
+        r
+      }
+
+      override def serialize(cos: CodedOutputStream, t: H :: T): Unit = {
+        fieldSer.serialize(cos, tag(), t.head)
+        tail.serialize(cos, t.tail)
+      }
+    }
+
+}
+
 object MessageSerializer {
   def apply[T](implicit e: MessageSerializer[T]) = e
 
-  implicit def messageSerializer[T, R](implicit aux: shapeless.Generic.Aux[T, R], vs: Lazy[MessageSerializer[R]]): MessageSerializer[T] =
+  implicit def messageSerializer[T, R](implicit aux: shapeless.Generic.Aux[T, R], vs: Lazy[HListSerializer[Nat._1, R]]): MessageSerializer[T] =
     new MessageSerializer[T] {
       override def serializedSize(value: T): Int = vs.value.serializedSize(aux.to(value))
 
@@ -97,24 +126,4 @@ object MessageSerializer {
       }
     }
 
-  implicit val hlistNilSerializer: MessageSerializer[HNil] = new MessageSerializer[HNil] {
-    override def serializedSize(value: HNil): Int = 0
-
-    override def serialize(cos: CodedOutputStream, value: HNil): Unit = {}
-  }
-
-  implicit def hlistSerializer[PT <: ProtoType, H, T <: HList](
-    implicit fieldSer: FieldSerializer[PT, H], tail: MessageSerializer[T]): MessageSerializer[H :: T] =
-    new MessageSerializer[H :: T] {
-      override def serializedSize(value: H :: T): Int = {
-        val sz = fieldSer.serializedSize(value.head)
-        val r = (if (sz > 0) (sz + CodedOutputStream.computeTagSize(1)) else 0) + tail.serializedSize(value.tail)
-        r
-      }
-
-      override def serialize(cos: CodedOutputStream, t: H :: T): Unit = {
-        fieldSer.serialize(cos, 1, t.head)
-        tail.serialize(cos, t.tail)
-      }
-    }
 }
