@@ -8,7 +8,7 @@ import scala.language.experimental.macros
 abstract class Msg[T <: Msg[T]] {
   self: T =>
 
-  var __cachedSerializedSize = 0
+  var __cachedSerializedSize: Array[Int] = null
 }
 
 abstract class Serializer[T <: Msg[T]] {

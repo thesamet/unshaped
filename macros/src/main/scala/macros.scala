@@ -58,16 +58,15 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
       q"$termName"
     }
 
-    def getOrUpdateCache(obj: Ident, sym: Symbol): Tree =  {
-      val cacheName = TermName("__cached_" + sym.name.decodedName.toString)
+    def getOrUpdateCache(obj: Tree, sym: Symbol): Tree =  {
       val termName = TermName(sym.name.decodedName.toString)
       val tag = extractTag(sym.annotations.head)
 
         q"""{
-              var __c = $obj.$cacheName
+              var __c = $obj
               if (__c == 0) {
-                  __c = _root_.com.google.protobuf.CodedOutputStream.computeTagSize(${tag}) + ${serializerSym(sym)}.serializedSizeNoTag(__v.${termName})
-                  __v.$cacheName = __c
+                  __c = ${com.google.protobuf.CodedOutputStream.computeTagSize(tag)} + ${serializerSym(sym)}.serializedSizeNoTag(__v.${termName})
+                  $obj = __c
               }
               __c
            }"""
@@ -79,7 +78,7 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
           val termName = TermName(sym.name.decodedName.toString)
 
           if (isRepeated(sym.annotations.head)) {
-            q"${serializerSym(sym)}.serializeWithKnownSize(__cos, $tag, ${getOrUpdateCache(q"__v", sym)}, __v.$termName)"
+            q"${serializerSym(sym)}.serializeWithKnownSize(__cos, $tag, __size(1), __v.$termName)"
           } else {
             q"${serializerSym(sym)}.serialize(__cos, $tag, __v.$termName)"
           }
@@ -91,9 +90,9 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
           val termName = TermName(sym.name.decodedName.toString)
           val cacheName = TermName("__cached_" + sym.name.decodedName.toString)
           if (isRepeated(sym.annotations.head)) {
-            q"""__size += ${getOrUpdateCache(q"__v", sym)}"""
+            q"""__size(0) += ${getOrUpdateCache(q"__size(1)", sym)}"""
           } else {
-            q"__size += _root_.com.google.protobuf.CodedOutputStream.computeTagSize(${tag}) + ${serializerSym(sym)}.serializedSizeNoTag(__v.$termName)"
+            q"__size(0) += ${com.google.protobuf.CodedOutputStream.computeTagSize(tag)} + ${serializerSym(sym)}.serializedSizeNoTag(__v.$termName)"
           }
       }
 
@@ -101,16 +100,18 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
     val f = q"""
        class $clsName(implicit ..$types) extends _root_.scalapb.core3.Serializer[$tpe] {
          def serialize(__cos: _root_.com.google.protobuf.CodedOutputStream, __v: $tpe): Unit = {
+           val __size = __v.__cachedSerializedSize
            ..$serStatements
          }
 
          def serializedSize(__v: $tpe): Int = {
            var __size = __v.__cachedSerializedSize
-           if (__size == 0) {
+           if (__size == null) {
+             __size = new Array[Int](3)
              ..$serSize
              __v.__cachedSerializedSize = __size
            }
-           __size
+           __size(0)
          }
        }
        new $clsName

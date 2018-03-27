@@ -7,9 +7,9 @@ import java.util.concurrent.TimeUnit
 import com.google.protobuf.CodedOutputStream
 import org.openjdk.jmh.annotations._
 import shapeless._
-
 import scalapb.core3.{Int32Serializer, Msg}
 import scalapb.macros.ProtoType.Int32
+import scalapb.magnolia.MagnoliaSerializer
 
 case class SimpleMessage(
 //  @Optional(Int32, 44) x: Int,
@@ -124,11 +124,13 @@ class UnshapedState {
   val macroSer = scalapb.core3.Serializer.makeSerializer[SimpleMessage]
   val macroSII = scalapb.core3.Serializer.makeSerializer[SII]
   val shapelessSII = scalapb.core4.MessageSerializer[SII]
-//  println("XXX" ,s.serializedSize(msg))
+  val magnoliaSII= MagnoliaSerializer.gen[SII]
+  val sii = SII("foo", "bar", 35, 17)
   println("XXX S3", macroSer.serializedSize(msg))
   println("XXX",   genMsg.toByteArray.map(_.toInt).toVector)
   println("MSR",   macroSer.toByteArray(msg).map(_.toInt).toVector)
   println("YYY", genMsg.serializedSize)
+  println("MSR csize",   msg.__cachedSerializedSize.toVector)
 }
 
 class BenchmarkProtos {
@@ -178,9 +180,18 @@ class BenchmarkProtos {
   @BenchmarkMode(Array(Mode.AverageTime))
   @OutputTimeUnit(TimeUnit.NANOSECONDS)
   def serializeShapelessSII(state: UnshapedState): Unit = {
-    val sii = SII("foo", "bar", 35, 17)
-    state.shapelessSII.toByteArray(sii)
+    state.shapelessSII.toByteArray(state.sii)
 
 //    state.macroSII.toByteArray(msg)
+  }
+
+  @Benchmark
+  @BenchmarkMode(Array(Mode.AverageTime))
+  @OutputTimeUnit(TimeUnit.NANOSECONDS)
+  def serializeMagnoliaSII(state: UnshapedState): Unit = {
+    val arr = new Array[Byte](14)
+    val cs = CodedOutputStream.newInstance(arr)
+    state.magnoliaSII.serialize(cs, state.sii)
+    cs.checkNoSpaceLeft()
   }
 }

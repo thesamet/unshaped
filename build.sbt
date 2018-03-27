@@ -12,6 +12,8 @@ lazy val macros = project.in(file("macros")).settings(
   libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
   libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value % "provided",
   libraryDependencies += "com.google.protobuf" % "protobuf-java" % "3.5.1",
+  libraryDependencies += "com.propensive" %% "magnolia" % "0.7.1",
+
   libraryDependencies ++= Seq(
     "org.typelevel" %% "macro-compat" % "1.1.1",
     "com.chuusai" %% "shapeless" % "2.3.2",

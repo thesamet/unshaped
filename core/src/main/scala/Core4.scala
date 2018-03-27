@@ -101,13 +101,16 @@ object HListSerializer {
     new HListSerializer[N, H :: T] {
 
       override def serializedSize(value: H :: T): Int = {
+        0
+        /*
         val sz = fieldSer.serializedSize(value.head)
         val r = (if (sz > 0) (sz + CodedOutputStream.computeTagSize(tag())) else 0) + tail.serializedSize(value.tail)
         r
+        */
       }
 
       override def serialize(cos: CodedOutputStream, t: H :: T): Unit = {
-        fieldSer.serialize(cos, tag(), t.head)
+//        fieldSer.serialize(cos, tag(), t.head)
         tail.serialize(cos, t.tail)
       }
     }
