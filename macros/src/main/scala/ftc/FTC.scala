@@ -47,7 +47,7 @@ class FTC(val c: whitebox.Context) {
 //            println(tpe)
           }
           if (sym.name.decodedName.toString == "ref") {
-            q"val ${sym.name.toTermName} = this"
+            q"val ${sym.name.toTermName} = ftc.FieldSerializer.messageFieldSerializer(this)"
           } else {
             q"val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
           }
@@ -59,7 +59,8 @@ class FTC(val c: whitebox.Context) {
           val ser = TermName(p.name.decodedName.toString)
           println(s"$ser ${innerType} ${innerType =:= weakTypeOf[Int]}")
           if (p.name.decodedName.toString == "ref") {
-            q"if (!__t.$ser.isEmpty) { __cos.writeTag(1, 2); __cos.writeUInt32NoTag($ser.serializedSize(__t.$ser.get)); ${ser}.serialize(__cos, __t.$ser.get); }"
+//            q"if (!__t.$ser.isEmpty) { cos.writeTag(1, 2); __cos.writeUInt32NoTag($ser.serializedSize(__t.$ser.get)); ${ser}.serialize(__cos, __t.$ser.get); }"
+            q"if (!__t.$ser.isEmpty) { ${ser}.serialize(__cos, 1, __t.$ser.get); }"
           } else {
             q"${ser}.serialize(__cos, 1, __t.$ser)"
           }
@@ -74,10 +75,11 @@ class FTC(val c: whitebox.Context) {
           val ser = TermName(p.name.decodedName.toString)
           if (p.name.decodedName.toString == "ref") {
             q"""if (!__t.$ser.isEmpty) {
-                val sz = $ser.serializedSize(__t.$ser.get)
-                __size += CodedOutputStream.computeTagSize(1) + CodedOutputStream.computeInt32SizeNoTag(sz) + sz
+                __size += $ser.serializedSize(1, __t.$ser.get)
                 }
              """
+            //                val sz = $ser.serializedSize(__t.$ser.get)
+            //                __size += CodedOutputStream.computeTagSize(1) + CodedOutputStream.computeInt32SizeNoTag(sz) + sz
           } else {
             q"__size += $ser.serializedSize(1, __t.$ser)"
           }
