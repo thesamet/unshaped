@@ -17,7 +17,7 @@ class FTC(val c: whitebox.Context) {
     override def transform(tree: Tree) = tree match {
       case q"ftc.Deferred.apply[$_](${Literal(Constant(method: String))})" =>
         println("TRASNFORMED!")
-        q"${TermName(method)}"
+        q"this" // ${TermName(method)}"
       case _ =>
         super.transform(tree)
     }
@@ -44,7 +44,7 @@ class FTC(val c: whitebox.Context) {
           if (innerType =:= weakTypeOf[Int]) {
             q"val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
           } else {
-            q"lazy val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
+            q"val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
           }
       }
       val clsName = c.universe.TypeName(c.freshName("anon"))
@@ -80,8 +80,8 @@ class FTC(val c: whitebox.Context) {
          }"""
 
       val r = q"""{
-          ..$inits
           final class $clsName extends ${appliedType(outTypeclass, genericType)} {
+            ..$inits
             $serialize
             $serializedSize
           }
@@ -112,7 +112,7 @@ class FTC(val c: whitebox.Context) {
         val tree = stack.enter(fn)
 
         val r = q"""{
-          lazy val ${termName}: $searchType = ${tree}
+          val ${termName}: $searchType = ${tree}
           ${termName}
         }"""
         r
@@ -183,65 +183,66 @@ object MessageSerializer {
 
 object FieldSerializer {
   implicit val IntSerializer: FieldSerializer[Int] = new FieldSerializer[Int] {
-    override def serializedSize(tag: Int, value: Int): Int = CodedOutputStream.computeInt32Size(tag, value)
+    final override def serializedSize(tag: Int, value: Int): Int = CodedOutputStream.computeInt32Size(tag, value)
 
-    override def serializeNoTag(cos: CodedOutputStream, value: Int): Unit =
+    final override def serializeNoTag(cos: CodedOutputStream, value: Int): Unit =
       cos.writeInt32NoTag(value)
 
-    override def serializedSizeNoTag(value: Int): Int = CodedOutputStream.computeInt32SizeNoTag(value)
+    final override def serializedSizeNoTag(value: Int): Int = CodedOutputStream.computeInt32SizeNoTag(value)
 
-    override def serialize(cos: CodedOutputStream, tag: Int, value: Int): Unit =
+    final override def serialize(cos: CodedOutputStream, tag: Int, value: Int): Unit =
       cos.writeInt32(tag, value)
   }
 
   implicit val StringSerializer: FieldSerializer[String] = new FieldSerializer[String] {
-    override def serializedSize(tag: Int, value: String): Int = CodedOutputStream.computeStringSize(tag, value)
+    final override def serializedSize(tag: Int, value: String): Int = CodedOutputStream.computeStringSize(tag, value)
 
-    override def serializeNoTag(cos: CodedOutputStream, value: String): Unit =
+    final override def serializeNoTag(cos: CodedOutputStream, value: String): Unit =
       cos.writeStringNoTag(value)
 
-    override def serializedSizeNoTag(value: String): Int = CodedOutputStream.computeStringSizeNoTag(value)
+    final override def serializedSizeNoTag(value: String): Int = CodedOutputStream.computeStringSizeNoTag(value)
 
-    override def serialize(cos: CodedOutputStream, tag: Int, value: String): Unit =
+    final override def serialize(cos: CodedOutputStream, tag: Int, value: String): Unit =
       cos.writeString(tag, value)
   }
 
   implicit def optionalFieldSerializer[T](implicit fser: FieldSerializer[T]): FieldSerializer[Option[T]] =
     new FieldSerializer[Option[T]] {
-      override def serializedSize(tag: Int, value: Option[T]): Int =
+      final override def serializedSize(tag: Int, value: Option[T]): Int =
         if (value.isEmpty) 0 else fser.serializedSize(tag, value.get)
 
-      override def serializeNoTag(cos: CodedOutputStream, value: Option[T]): Unit = ???
+      final override def serializeNoTag(cos: CodedOutputStream, value: Option[T]): Unit = ???
 
-      override def serializedSizeNoTag(value: Option[T]): Int = ???
+      final override def serializedSizeNoTag(value: Option[T]): Int = ???
 
-      override def serialize(cos: CodedOutputStream, tag: Int, value: Option[T]): Unit = {
-        value.foreach(fser.serialize(cos, tag, _))
+      final override def serialize(cos: CodedOutputStream, tag: Int, value: Option[T]): Unit = {
+        if (!value.isEmpty) {
+          fser.serialize(cos, tag, value.get)
+        } else {}
       }
     }
 
   implicit def messageFieldSerializer[T](implicit messageSer: MessageSerializer[T]): FieldSerializer[T] =
     new FieldSerializer[T] {
-      override def serializedSize(tag: Int, value: T): Int = {
+      final override def serializedSize(tag: Int, value: T): Int = {
         val sz = messageSer.serializedSize(value)
         CodedOutputStream.computeInt32Size(tag, sz) + sz
       }
 
-      override def serializeNoTag(cos: CodedOutputStream, value: T): Unit = {
+      final override def serializeNoTag(cos: CodedOutputStream, value: T): Unit = {
         val sz = messageSer.serializedSize(value)
         cos.writeInt32NoTag(sz)
         messageSer.serialize(cos, value)
       }
 
-      override def serializedSizeNoTag(value: T): Int = {
+      final override def serializedSizeNoTag(value: T): Int = {
         val sz = messageSer.serializedSize(value)
         CodedOutputStream.computeInt32SizeNoTag(sz) + sz
       }
 
-      override def serialize(cos: CodedOutputStream, tag: Int, value: T): Unit = {
-        val sz = messageSer.serializedSize(value)
+      final override def serialize(cos: CodedOutputStream, tag: Int, value: T): Unit = {
         cos.writeTag(tag, 2)
-        cos.writeInt32NoTag(sz)
+        cos.writeInt32NoTag(messageSer.serializedSize(value))
         messageSer.serialize(cos, value)
       }
     }
