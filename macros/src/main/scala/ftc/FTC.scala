@@ -41,12 +41,18 @@ class FTC(val c: whitebox.Context) {
           if (foundImplicit.isEmpty) {
             c.abort(c.enclosingPosition, s"failed for $searchType")
           }
-          q"lazy val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
+          if (innerType =:= weakTypeOf[Int]) {
+            q"val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
+          } else {
+            q"lazy val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
+          }
       }
       val clsName = c.universe.TypeName(c.freshName("anon"))
       val serStatements = params.map {
         p =>
+          val innerType = p.typeSignatureIn(genericType).finalResultType
           val ser = TermName(p.name.decodedName.toString)
+          println(s"$ser ${innerType} ${innerType =:= weakTypeOf[Int]}")
           q"${ser}.serialize(__cos, 1, __t.$ser)"
       }
       val serialize =
@@ -210,9 +216,7 @@ object FieldSerializer {
       override def serializedSizeNoTag(value: Option[T]): Int = ???
 
       override def serialize(cos: CodedOutputStream, tag: Int, value: Option[T]): Unit = {
-        if (value.nonEmpty) {
-          fser.serialize(cos, tag, value.get)
-        }
+        value.foreach(fser.serialize(cos, tag, _))
       }
     }
 
