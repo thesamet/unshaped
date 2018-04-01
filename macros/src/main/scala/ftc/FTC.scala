@@ -31,8 +31,8 @@ class FTC(val c: whitebox.Context) {
     if (classType.isCaseClass) {
       println(s"Case class for $genericType")
       val params: List[Symbol] = classType.primaryConstructor.asMethod.typeSignature.paramLists.head
-      val inits = params.map {
-        sym =>
+      val inits = params.zipWithIndex.map {
+        case (sym, index) =>
           val innerType = sym.typeSignatureIn(genericType).finalResultType
           val searchType = appliedType(fieldTypeclass, innerType)
           println(s"----> for $searchType")
@@ -41,29 +41,46 @@ class FTC(val c: whitebox.Context) {
           if (foundImplicit.isEmpty) {
             c.abort(c.enclosingPosition, s"failed for $searchType")
           }
-          if (innerType =:= weakTypeOf[Int]) {
-            q"val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
+          if (innerType <:< weakTypeOf[Option[_]]) {
+            println(s"Found option! $innerType")
+//            val tq"Option[$tpe]" = innerType
+//            println(tpe)
+          }
+          if (sym.name.decodedName.toString == "ref") {
+            q"val ${sym.name.toTermName} = this"
           } else {
             q"val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
           }
       }
       val clsName = c.universe.TypeName(c.freshName("anon"))
-      val serStatements = params.map {
-        p =>
+      val serStatements = params.zipWithIndex.map {
+        case (p, index) =>
           val innerType = p.typeSignatureIn(genericType).finalResultType
           val ser = TermName(p.name.decodedName.toString)
           println(s"$ser ${innerType} ${innerType =:= weakTypeOf[Int]}")
-          q"${ser}.serialize(__cos, 1, __t.$ser)"
+          if (p.name.decodedName.toString == "ref") {
+            q"if (!__t.$ser.isEmpty) { __cos.writeTag(1, 2); __cos.writeUInt32NoTag($ser.serializedSize(__t.$ser.get)); ${ser}.serialize(__cos, __t.$ser.get); }"
+          } else {
+            q"${ser}.serialize(__cos, 1, __t.$ser)"
+          }
       }
       val serialize =
         q"""final def serialize(__cos: CodedOutputStream, __t: $genericType): Unit = {
            ..$serStatements
            }"""
 
-      val serSizeStatements = params.map {
-        p =>
+      val serSizeStatements = params.zipWithIndex.map {
+        case (p, index) =>
           val ser = TermName(p.name.decodedName.toString)
-          q"__size += $ser.serializedSize(1, __t.$ser)"
+          if (p.name.decodedName.toString == "ref") {
+            q"""if (!__t.$ser.isEmpty) {
+                val sz = $ser.serializedSize(__t.$ser.get)
+                __size += CodedOutputStream.computeTagSize(1) + CodedOutputStream.computeInt32SizeNoTag(sz) + sz
+                }
+             """
+          } else {
+            q"__size += $ser.serializedSize(1, __t.$ser)"
+          }
       }
 
       val serializedSize = q"""
