@@ -10,3 +10,15 @@ message SimpleMessageGen {
   int32 i = 15;
   repeated int32 r = 19;
 }
+
+message SIIGen {
+  string x = 1;
+  string y = 2;
+  int32 z = 3;
+  int32 w = 4;
+}
+
+message RefGen {
+  int32 i = 1;
+  RefGen ref = 2;
+}

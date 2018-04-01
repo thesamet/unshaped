@@ -50,7 +50,6 @@ object MagnoliaSerializer {
 
   def hack[T : c.WeakTypeTag](c: whitebox.Context): c.Tree = {
     val z = Magnolia.gen(c)
-    println(z.toString().replace("$6", "***$6***"))
     z
   }
 }

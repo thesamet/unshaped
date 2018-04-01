@@ -8,6 +8,7 @@ import com.google.protobuf.CodedOutputStream
 import org.openjdk.jmh.annotations._
 import shapeless._
 import scalapb.core3.{Int32Serializer, Msg}
+import scalapb.gen.gen.RefGen
 import scalapb.macros.ProtoType.Int32
 import scalapb.magnolia.MagnoliaSerializer
 
@@ -44,8 +45,9 @@ case class SII(
   @Optional(ProtoType.String, 2) y: String,
   @Optional(ProtoType.Int32, 3) z: Int,
   @Optional(ProtoType.Int32, 4) w: Int) extends Msg[SII] {
-
 }
+
+case class Ref(a: Int, ref: Option[Ref]) extends Msg[Ref]
 
 /*
 class MyManualSerializer(
@@ -125,7 +127,12 @@ class UnshapedState {
   val macroSII = scalapb.core3.Serializer.makeSerializer[SII]
   val shapelessSII = scalapb.core4.MessageSerializer[SII]
   val magnoliaSII= MagnoliaSerializer.gen[SII]
+  val ftcSII = ftc.MessageSerializer.gen[SII]
   val sii = SII("foo", "bar", 35, 17)
+  val genSii = scalapb.gen.gen.SIIGen("foo", "bar", 35, 17)
+  val ftcRef = ftc.MessageSerializer.gen[Ref]
+  val ref = Ref(19, Some(Ref(4, Some(Ref(7, None)))))
+  val refGen = RefGen(19, Some(RefGen(4, Some(RefGen(7, None)))))
   println("XXX S3", macroSer.serializedSize(msg))
   println("XXX",   genMsg.toByteArray.map(_.toInt).toVector)
   println("MSR",   macroSer.toByteArray(msg).map(_.toInt).toVector)
@@ -172,8 +179,7 @@ class BenchmarkProtos {
   @OutputTimeUnit(TimeUnit.NANOSECONDS)
   def serializeMacroSII(state: UnshapedState): Unit = {
 
-    val sii = SII("foo", "bar", 35, 17)
-    state.macroSII.toByteArray(sii)
+    state.macroSII.toByteArray(state.sii)
   }
 
   @Benchmark
@@ -193,5 +199,33 @@ class BenchmarkProtos {
     val cs = CodedOutputStream.newInstance(arr)
     state.magnoliaSII.serialize(cs, state.sii)
     cs.checkNoSpaceLeft()
+  }
+
+  @Benchmark
+  @BenchmarkMode(Array(Mode.AverageTime))
+  @OutputTimeUnit(TimeUnit.NANOSECONDS)
+  def serializeFtcSII(state: UnshapedState): Unit = {
+    state.ftcSII.toByteArray(state.sii)
+  }
+
+  @Benchmark
+  @BenchmarkMode(Array(Mode.AverageTime))
+  @OutputTimeUnit(TimeUnit.NANOSECONDS)
+  def serializeGenSII(state: UnshapedState): Unit = {
+    state.genSii.toByteArray
+  }
+
+  @Benchmark
+  @BenchmarkMode(Array(Mode.AverageTime))
+  @OutputTimeUnit(TimeUnit.NANOSECONDS)
+  def serializeFtcRef(state: UnshapedState): Unit = {
+    state.ftcRef.toByteArray(state.ref)
+  }
+
+  @Benchmark
+  @BenchmarkMode(Array(Mode.AverageTime))
+  @OutputTimeUnit(TimeUnit.NANOSECONDS)
+  def serializeGenRef(state: UnshapedState): Unit = {
+    state.refGen.toByteArray
   }
 }

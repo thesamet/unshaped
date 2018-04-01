@@ -116,7 +116,6 @@ class Macros(val c: whitebox.Context) extends CaseClassMacros with SingletonType
        }
        new $clsName
      """
-    println(f)
     f
   }
 
