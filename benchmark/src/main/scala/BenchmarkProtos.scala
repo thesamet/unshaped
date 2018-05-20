@@ -130,7 +130,7 @@ class UnshapedState {
   val ftcSII = ftc.MessageSerializer.gen[SII]
   val sii = SII("foo", "bar", 35, 17)
   val genSii = scalapb.gen.gen.SIIGen("foo", "bar", 35, 17)
-  val ftcRef = ftc.MessageSerializer.gen[Ref]
+//  val ftcRef = ftc.MessageSerializer.gen[Ref]
   val ref = Ref(19, Some(Ref(4, Some(Ref(7, None)))))
   val refGen = RefGen(19, Some(RefGen(4, Some(RefGen(7, None)))))
   println("XXX S3", macroSer.serializedSize(msg))
@@ -186,7 +186,7 @@ class BenchmarkProtos {
   @BenchmarkMode(Array(Mode.AverageTime))
   @OutputTimeUnit(TimeUnit.NANOSECONDS)
   def serializeShapelessSII(state: UnshapedState): Unit = {
-    state.shapelessSII.toByteArray(state.sii)
+//    state.shapelessSII.toByteArray(state.sii)
 
 //    state.macroSII.toByteArray(msg)
   }
@@ -215,6 +215,7 @@ class BenchmarkProtos {
     state.genSii.toByteArray
   }
 
+  /*
   @Benchmark
   @BenchmarkMode(Array(Mode.AverageTime))
   @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -228,4 +229,5 @@ class BenchmarkProtos {
   def serializeGenRef(state: UnshapedState): Unit = {
     state.refGen.toByteArray
   }
+  */
 }

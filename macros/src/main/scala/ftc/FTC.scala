@@ -31,39 +31,30 @@ class FTC(val c: whitebox.Context) {
     if (classType.isCaseClass) {
       println(s"Case class for $genericType")
       val params: List[Symbol] = classType.primaryConstructor.asMethod.typeSignature.paramLists.head
-      val inits = params.zipWithIndex.map {
+      val searchTypeCache = mutable.Map.empty[String, TermName]
+      val inits = params.zipWithIndex.flatMap {
         case (sym, index) =>
           val innerType = sym.typeSignatureIn(genericType).finalResultType
-          val searchType = appliedType(fieldTypeclass, innerType)
-          println(s"----> for $searchType")
-          val foundImplicit = c.inferImplicitValue(searchType)
-          println(s"    foundImpliict: $foundImplicit")
-          if (foundImplicit.isEmpty) {
-            c.abort(c.enclosingPosition, s"failed for $searchType")
-          }
-          if (innerType <:< weakTypeOf[Option[_]]) {
-            println(s"Found option! $innerType")
-//            val tq"Option[$tpe]" = innerType
-//            println(tpe)
-          }
-          if (sym.name.decodedName.toString == "ref") {
-            q"val ${sym.name.toTermName} = ftc.FieldSerializer.messageFieldSerializer(this)"
-          } else {
-            q"val ${sym.name.toTermName}: ${searchType} = ${foundImplicit} // foo"
-          }
+          val searchType: c.universe.Type = appliedType(fieldTypeclass, innerType)
+          if (!searchTypeCache.contains(innerType.toString)) {
+            println(s"----> for $searchType")
+            val foundImplicit = c.inferImplicitValue(searchType)
+            println(s"    foundImpliict: $foundImplicit")
+            if (foundImplicit.isEmpty) {
+              c.abort(c.enclosingPosition, s"failed for $searchType")
+            }
+            searchTypeCache += (innerType.toString) -> sym.name.toTermName
+            Seq(q"val ${sym.name.toTermName}: ${searchType} = ${foundImplicit}")
+          } else Nil
       }
+      def serializerName(searchType: Type): TermName = searchTypeCache(searchType.toString)
+
       val clsName = c.universe.TypeName(c.freshName("anon"))
       val serStatements = params.zipWithIndex.map {
         case (p, index) =>
           val innerType = p.typeSignatureIn(genericType).finalResultType
-          val ser = TermName(p.name.decodedName.toString)
-          println(s"$ser ${innerType} ${innerType =:= weakTypeOf[Int]}")
-          if (p.name.decodedName.toString == "ref") {
-//            q"if (!__t.$ser.isEmpty) { cos.writeTag(1, 2); __cos.writeUInt32NoTag($ser.serializedSize(__t.$ser.get)); ${ser}.serialize(__cos, __t.$ser.get); }"
-            q"if (!__t.$ser.isEmpty) { ${ser}.serialize(__cos, 1, __t.$ser.get); }"
-          } else {
-            q"${ser}.serialize(__cos, 1, __t.$ser)"
-          }
+          val ser = serializerName(innerType)
+          q"${ser}.serialize(__cos, 1, __t.${p.name.decodedName.toTermName})"
       }
       val serialize =
         q"""final def serialize(__cos: CodedOutputStream, __t: $genericType): Unit = {
@@ -85,6 +76,7 @@ class FTC(val c: whitebox.Context) {
           }
       }
 
+      /*
       val serializedSize = q"""
          final def serializedSize(__t: $genericType): Int = {
            var __sizeArray = __t.__cachedSerializedSize
@@ -97,12 +89,13 @@ class FTC(val c: whitebox.Context) {
            }
            __sizeArray(0)
          }"""
+         */
 
       val r = q"""{
           final class $clsName extends ${appliedType(outTypeclass, genericType)} {
             ..$inits
             $serialize
-            $serializedSize
+            // serializedSize
           }
           new $clsName
          }
@@ -156,7 +149,7 @@ class FTC(val c: whitebox.Context) {
 
       val fieldTypeClass = findType("FieldTypeclass")
       val outTypeclass = findType("Typeclass")
-      val genericType = c.weakTypeOf[T]
+      val genericType: c.Type = c.weakTypeOf[T]
       val searchType = appliedType(outTypeclass, genericType)
       val z = deriveOrGet(stack, TermName(c.freshName("ftc")), searchType) {
         generateTree(genericType, outTypeclass, fieldTypeClass)
@@ -180,7 +173,7 @@ abstract class FieldSerializer[@specialized T] {
 }
 
 abstract class MessageSerializer[T] {
-  def serializedSize(value: T): Int
+  def serializedSize(value: T): Int = 0
 
   def serialize(cos: CodedOutputStream, value: T): Unit
 
@@ -210,7 +203,9 @@ object FieldSerializer {
     final override def serializedSizeNoTag(value: Int): Int = CodedOutputStream.computeInt32SizeNoTag(value)
 
     final override def serialize(cos: CodedOutputStream, tag: Int, value: Int): Unit =
-      cos.writeInt32(tag, value)
+      if (value != 0) {
+        cos.writeInt32(tag, value)
+      }
   }
 
   implicit val StringSerializer: FieldSerializer[String] = new FieldSerializer[String] {

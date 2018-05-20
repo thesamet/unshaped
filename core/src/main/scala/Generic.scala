@@ -1,4 +1,4 @@
-package scalapb.core4
+package scalapb.generic
 
 import com.google.protobuf.{CodedOutputStream, WireFormat}
 import shapeless.ops.nat.ToInt
@@ -59,20 +59,20 @@ abstract class MessageSerializer[T] {
   def serialize(cos: CodedOutputStream, value: T): Unit
 }
 
-abstract class HListSerializer[N <: Nat, R] extends MessageSerializer[R]
+abstract class HListSerializer[R](val tag: Int) extends MessageSerializer[R]
 
 object HListSerializer {
 
-  implicit def hlistNilSerializer[N <: Nat, R] = new HListSerializer[N, HNil] {
+  implicit def hlistNilSerializer[R] = new HListSerializer[HNil](0) {
     override def serialize(cos: CodedOutputStream, value: HNil): Unit = {}
   }
 
-  implicit def hlistSerializer[N <: Nat, PT <: ProtoType, H, T <: HList](
-    implicit fieldSer: FieldSerializer[PT, H], tail: HListSerializer[Succ[N], T], tag: ToInt[N]): HListSerializer[N, H :: T] =
-    new HListSerializer[N, H :: T] {
+  implicit def hlistSerializer[PT <: ProtoType, H, T <: HList](
+    implicit fieldSer: FieldSerializer[PT, H], tail: HListSerializer[T]): HListSerializer[H :: T] =
+    new HListSerializer[H :: T](tail.tag + 1) {
 
       override def serialize(cos: CodedOutputStream, t: H :: T): Unit = {
-        fieldSer.serialize(cos, tag(), t.head)
+        fieldSer.serialize(cos, tag, t.head)
         tail.serialize(cos, t.tail)
       }
     }
@@ -82,10 +82,10 @@ object HListSerializer {
 object MessageSerializer {
   def apply[T](implicit e: MessageSerializer[T]) = e
 
-  implicit def messageSerializer[T, R](implicit aux: shapeless.Generic.Aux[T, R], vs: Lazy[HListSerializer[Nat._1, R]]): MessageSerializer[T] =
+  implicit def messageSerializer[T, R](implicit aux: shapeless.Generic.Aux[T, R], vs: HListSerializer[R]): MessageSerializer[T] =
     new MessageSerializer[T] {
       override def serialize(cos: CodedOutputStream, t: T): Unit = {
-        vs.value.serialize(cos, aux.to(t))
+        vs.serialize(cos, aux.to(t))
       }
     }
 

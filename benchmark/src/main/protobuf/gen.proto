@@ -22,3 +22,273 @@ message RefGen {
   int32 i = 1;
   RefGen ref = 2;
 }
+
+message Message1 {
+  int32 a1 = 1;
+}
+
+message Message2 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+}
+
+message Message3 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+}
+
+message Message4 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+}
+
+message Message5 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+}
+
+message Message6 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+}
+
+message Message7 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+}
+
+message Message8 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+}
+
+message Message9 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+}
+
+message Message10 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+}
+
+message Message11 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+}
+
+message Message12 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+}
+
+message Message13 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+  int32 a13 = 13;
+}
+
+message Message14 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+  int32 a13 = 13;
+  int32 a14 = 14;
+}
+
+message Message15 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+  int32 a13 = 13;
+  int32 a14 = 14;
+  int32 a15 = 15;
+}
+
+message Message16 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+  int32 a13 = 13;
+  int32 a14 = 14;
+  int32 a15 = 15;
+  int32 a16 = 16;
+}
+
+message Message17 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+  int32 a13 = 13;
+  int32 a14 = 14;
+  int32 a15 = 15;
+  int32 a16 = 16;
+  int32 a17 = 17;
+}
+
+message Message18 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+  int32 a13 = 13;
+  int32 a14 = 14;
+  int32 a15 = 15;
+  int32 a16 = 16;
+  int32 a17 = 17;
+  int32 a18 = 18;
+}
+
+message Message19 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+  int32 a13 = 13;
+  int32 a14 = 14;
+  int32 a15 = 15;
+  int32 a16 = 16;
+  int32 a17 = 17;
+  int32 a18 = 18;
+  int32 a19 = 19;
+}
+
+message Message20 {
+  int32 a1 = 1;
+  int32 a2 = 2;
+  int32 a3 = 3;
+  int32 a4 = 4;
+  int32 a5 = 5;
+  int32 a6 = 6;
+  int32 a7 = 7;
+  int32 a8 = 8;
+  int32 a9 = 9;
+  int32 a10 = 10;
+  int32 a11 = 11;
+  int32 a12 = 12;
+  int32 a13 = 13;
+  int32 a14 = 14;
+  int32 a15 = 15;
+  int32 a16 = 16;
+  int32 a17 = 17;
+  int32 a18 = 18;
+  int32 a19 = 19;
+  int32 a20 = 20;
+}

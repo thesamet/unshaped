@@ -43,6 +43,9 @@ lazy val core = project.in(file("core")).dependsOn(macros).settings(
 
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.12.0",
+
+  fork in Test := true,
+  (javaOptions in Test)++= Seq("-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintInlining")
 )
 
 lazy val benchmark = project.in(file("benchmark")).dependsOn(core).settings(
